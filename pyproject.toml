@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tw-trademarket-info"
+version = "0.1.0"
+description = "Unified data ingestion utilities for Taiwan markets"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "DDChen", email = ""}
+]
+dependencies = [
+    "requests>=2.31",
+    "pydantic>=2.6",
+    "python-dotenv>=1.0",
+    "tenacity>=8.2",
+    "pandas>=2.2",
+    "duckdb>=0.10",
+    "pyarrow>=15.0",
+    "lxml>=5.0",
+    "feedparser>=6.0",
+    "chardet>=5.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1"
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["src"]

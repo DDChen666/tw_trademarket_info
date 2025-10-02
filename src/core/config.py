@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass, fields
 from functools import lru_cache
 from typing import Any, Dict
 
@@ -28,23 +28,38 @@ class AppConfig:
     proxy_url: str | None = None
 
     def __init__(self, **overrides: Any) -> None:
+        field_defaults: Dict[str, Any] = {}
+        for field in fields(self):
+            if field.default is not MISSING:
+                field_defaults[field.name] = field.default
+            elif field.default_factory is not MISSING:  # pragma: no cover - defensive guard
+                field_defaults[field.name] = field.default_factory()
+            else:  # pragma: no cover - every field currently has a default
+                raise TypeError(f"Field '{field.name}' requires a default value")
+
         values: Dict[str, Any] = {
-            "timezone": os.getenv("TZ", self.timezone),
-            "http_timeout": float(os.getenv("HTTP_TIMEOUT", self.http_timeout)),
-            "http_max_retries": int(os.getenv("HTTP_MAX_RETRIES", self.http_max_retries)),
-            "http_backoff_base": float(os.getenv("HTTP_BACKOFF_BASE", self.http_backoff_base)),
-            "user_agent": os.getenv("USER_AGENT", self.user_agent),
-            "finmind_token": os.getenv("FINMIND_TOKEN", self.finmind_token),
-            "proxy_url": os.getenv("PROXY_URL", self.proxy_url),
+            "timezone": os.getenv("TZ", field_defaults["timezone"]),
+            "http_timeout": os.getenv("HTTP_TIMEOUT", field_defaults["http_timeout"]),
+            "http_max_retries": os.getenv("HTTP_MAX_RETRIES", field_defaults["http_max_retries"]),
+            "http_backoff_base": os.getenv("HTTP_BACKOFF_BASE", field_defaults["http_backoff_base"]),
+            "user_agent": os.getenv("USER_AGENT", field_defaults["user_agent"]),
+            "finmind_token": os.getenv("FINMIND_TOKEN", field_defaults["finmind_token"]),
+            "proxy_url": os.getenv("PROXY_URL", field_defaults["proxy_url"]),
         }
         values.update(overrides)
-        object.__setattr__(self, "timezone", values["timezone"])
+
+        timezone_value = values.get("timezone")
+        user_agent_value = values.get("user_agent")
+
+        object.__setattr__(self, "timezone", timezone_value if timezone_value is not None else field_defaults["timezone"])
         object.__setattr__(self, "http_timeout", float(values["http_timeout"]))
         object.__setattr__(self, "http_max_retries", int(values["http_max_retries"]))
         object.__setattr__(self, "http_backoff_base", float(values["http_backoff_base"]))
-        object.__setattr__(self, "user_agent", str(values["user_agent"]))
-        object.__setattr__(self, "finmind_token", values.get("finmind_token") or None)
-        object.__setattr__(self, "proxy_url", values.get("proxy_url") or None)
+        object.__setattr__(self, "user_agent", user_agent_value if user_agent_value is not None else field_defaults["user_agent"])
+        finmind_token = values.get("finmind_token")
+        proxy_url = values.get("proxy_url")
+        object.__setattr__(self, "finmind_token", finmind_token or None)
+        object.__setattr__(self, "proxy_url", proxy_url or None)
 
     @property
     def proxies(self) -> Dict[str, str]:

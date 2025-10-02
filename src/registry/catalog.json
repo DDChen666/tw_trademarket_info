@@ -1,0 +1,77 @@
+{
+  "twse.stock_day": {
+    "source": "TWSE OpenAPI",
+    "endpoint": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY",
+    "method": "GET",
+    "query": {
+      "response": "json",
+      "date": "{YYYYMMDD}",
+      "stockNo": "{stockNo}"
+    },
+    "frequency": "daily_eod",
+    "pk": ["date", "stockNo"],
+    "fields": ["date", "open", "high", "low", "close", "volume"],
+    "validators": ["non_negative_prices", "date_matches_param"],
+    "docs": "https://openapi.twse.com.tw/v1/swagger.json",
+    "parser": "json"
+  },
+  "twse.t86": {
+    "source": "TWSE OpenAPI",
+    "endpoint": "https://openapi.twse.com.tw/v1/fund/T86",
+    "method": "GET",
+    "query": {
+      "response": "json",
+      "date": "{YYYYMMDD}",
+      "selectType": "ALLBUT0999"
+    },
+    "frequency": "daily_eod",
+    "pk": ["date", "stockNo", "investorType"],
+    "docs": "https://openapi.twse.com.tw/",
+    "parser": "json"
+  },
+  "twse.margin": {
+    "source": "TWSE OpenAPI",
+    "endpoint": "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN",
+    "method": "GET",
+    "query": {
+      "response": "json",
+      "date": "{YYYYMMDD}"
+    },
+    "frequency": "daily_eod",
+    "pk": ["date", "stockNo"],
+    "parser": "json"
+  },
+  "tpex.stock_day": {
+    "source": "TPEx OpenAPI",
+    "endpoint": "https://www.tpex.org.tw/openapi/v1/mopsfin/t187ap03_L",
+    "method": "GET",
+    "frequency": "daily_eod",
+    "pk": ["Date", "SecuritiesCompanyCode"],
+    "docs": "https://www.tpex.org.tw/openapi/",
+    "parser": "json"
+  },
+  "taifex.daily_report": {
+    "source": "TAIFEX",
+    "endpoint": "https://www.taifex.com.tw/cht/3/dlFutDataDown",
+    "method": "POST",
+    "payload": {
+      "down_type": "1",
+      "commodity_id": "TX",
+      "queryStartDate": "{YYYYMMDD}",
+      "queryEndDate": "{YYYYMMDD}"
+    },
+    "frequency": "daily_eod",
+    "pk": ["date", "contract"],
+    "docs": "https://www.taifex.com.tw/enl/eng3/futDailyMarketReport",
+    "parser": "csv"
+  },
+  "mops.material_info_rss": {
+    "source": "MOPS",
+    "endpoint": "https://mops.twse.com.tw/nas/rss/mopsrss201001.xml",
+    "method": "GET",
+    "frequency": "workday_intraday_poll",
+    "pk": ["guid"],
+    "docs": "https://mops.twse.com.tw/mops/web/index",
+    "parser": "rss"
+  }
+}

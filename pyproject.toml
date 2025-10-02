@@ -9,7 +9,7 @@ description = "Unified data ingestion utilities for Taiwan markets"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    {name = "DDChen", email = ""}
+    {name = "DDChen", email = "ddchen@example.com"}
 ]
 dependencies = [
     "requests>=2.31",

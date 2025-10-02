@@ -27,6 +27,19 @@ def enrich_params(params: Dict[str, Any]) -> Dict[str, Any]:
             enriched.setdefault("YYYYMMDD", dt.strftime("%Y%m%d"))
             enriched.setdefault("YYYYMM", dt.strftime("%Y%m"))
             enriched.setdefault("YYYY", dt.strftime("%Y"))
+            enriched.setdefault("MM", dt.strftime("%m"))
+            enriched.setdefault("DD", dt.strftime("%d"))
+            enriched.setdefault("YYYY/MM/DD", dt.strftime("%Y/%m/%d"))
+            roc_year = dt.year - 1911
+            if roc_year > 0:
+                enriched.setdefault("ROC_YEAR", f"{roc_year:03d}")
+                enriched.setdefault("ROC_YY", f"{roc_year:02d}")
+                enriched.setdefault("YYY", f"{roc_year:03d}")
+                enriched.setdefault("YY", f"{roc_year:02d}")
+                enriched.setdefault("YYYMM", f"{roc_year:03d}{dt.month:02d}")
+                enriched.setdefault("YYY/MM", f"{roc_year:03d}/{dt.month:02d}")
+                enriched.setdefault("YYYMMDD", f"{roc_year:03d}{dt.month:02d}{dt.day:02d}")
+                enriched.setdefault("YYY/MM/DD", f"{roc_year:03d}/{dt.month:02d}/{dt.day:02d}")
     return enriched
 
 
@@ -63,6 +76,10 @@ def execute_entry(
         request_kwargs["params"] = request_config["query"]
     if "payload" in request_config:
         request_kwargs["data"] = request_config["payload"]
+    if "headers" in request_config:
+        request_kwargs["headers"] = request_config["headers"]
+    if "timeout_seconds" in request_config:
+        request_kwargs["timeout"] = request_config["timeout_seconds"]
 
     response = http_client.request(method, url, **request_kwargs)
 
@@ -86,11 +103,13 @@ def execute_entry(
         payload = response.text
 
     return {
-        "category": entry.name,
-        "source": entry.raw.get("source"),
+        "category": entry.id,
+        "name": entry.name,
+        "source": request_config.get("source"),
         "fetched_at": datetime.utcnow().isoformat() + "Z",
         "params": params,
         "payload": payload,
+        "storage": request_config.get("storage"),
     }
 
 

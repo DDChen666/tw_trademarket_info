@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     pull_parser = subparsers.add_parser("pull", help="Fetch a category payload")
-    pull_parser.add_argument("category", help="Catalog category name, e.g. twse.stock_day")
+    pull_parser.add_argument("category", help="Catalog category name, e.g. twse.exchangeReport.STOCK_DAY")
     pull_parser.add_argument(
         "--param",
         dest="params",
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
 
         catalog = load_catalog()
         try:
-            entry = catalog[args.category]
+            entry = catalog.get_entry(args.category)
         except KeyError as exc:
             parser.error(f"Unknown category: {args.category}")
             raise exc

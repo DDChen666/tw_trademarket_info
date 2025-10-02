@@ -1,77 +1,664 @@
 {
-  "twse.stock_day": {
-    "source": "TWSE OpenAPI",
-    "endpoint": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY",
-    "method": "GET",
-    "query": {
-      "response": "json",
-      "date": "{YYYYMMDD}",
-      "stockNo": "{stockNo}"
+  "version": "2025-10-02",
+  "generated_at": "2025-10-02T21:11:34.210917+08:00",
+  "timezone": "Asia/Taipei",
+  "notes": [
+    "Scope: Only official, free, publicly documented OpenAPI endpoints (TWSE/TPEx/TAIFEX) and MOPS RSS feeds. Paid real-time feeds are intentionally excluded.",
+    "Discovery-first approach: Swagger/OpenAPI specs are referenced so your pipeline can enumerate all paths at runtime. Common high-value endpoints are pre-filled with request templates and field mappings.",
+    "Rate limits are not explicitly documented by providers; conservative defaults are provided. Tune if you observe stricter limits."
+  ],
+  "global_defaults": {
+    "http": {
+      "timeout_seconds": 30,
+      "headers": {
+        "User-Agent": "tw-markets-crawler/1.0 (+contact@example.com)"
+      },
+      "retries": {
+        "strategy": "exponential",
+        "max_retries": 5,
+        "initial_delay_ms": 500,
+        "max_delay_ms": 4000,
+        "retry_on": [
+          "429",
+          "5xx",
+          "network"
+        ]
+      },
+      "rate_limit": {
+        "rps": 2,
+        "burst": 2,
+        "concurrency": 1
+      }
     },
-    "frequency": "daily_eod",
-    "pk": ["date", "stockNo"],
-    "fields": ["date", "open", "high", "low", "close", "volume"],
-    "validators": ["non_negative_prices", "date_matches_param"],
-    "docs": "https://openapi.twse.com.tw/v1/swagger.json",
-    "parser": "json"
+    "scheduling": {
+      "eod_cron": "30 16 * * 1-5",
+      "intra_day_poll_seconds": 120
+    }
   },
-  "twse.t86": {
-    "source": "TWSE OpenAPI",
-    "endpoint": "https://openapi.twse.com.tw/v1/fund/T86",
-    "method": "GET",
-    "query": {
-      "response": "json",
-      "date": "{YYYYMMDD}",
-      "selectType": "ALLBUT0999"
+  "sources": [
+    {
+      "id": "twse",
+      "name": "Taiwan Stock Exchange (TWSE)",
+      "base_urls": [
+        "https://openapi.twse.com.tw/v1",
+        "https://www.twse.com.tw"
+      ],
+      "discovery": {
+        "type": "openapi",
+        "spec_url": "https://openapi.twse.com.tw/v1/swagger.json",
+        "include_paths": [
+          "/exchangeReport/*",
+          "/fund/*"
+        ],
+        "exclude_paths": []
+      },
+      "endpoints": [
+        {
+          "id": "twse.exchangeReport.STOCK_DAY",
+          "name": "上市個股日成交資訊 (Stock Day by code)",
+          "category": "prices",
+          "method": "GET",
+          "url_template": "https://www.twse.com.tw/exchangeReport/STOCK_DAY",
+          "query_template": {
+            "response": "json",
+            "date": "YYYYMMDD",
+            "stockNo": "{stock_code}"
+          },
+          "request_example": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=20250101&stockNo=2330",
+          "response": {
+            "content_type": "application/json",
+            "data_path": "data",
+            "fields_map": {
+              "日期": "date_roc",
+              "成交股數": "volume",
+              "成交金額": "turnover",
+              "開盤價": "open",
+              "最高價": "high",
+              "最低價": "low",
+              "收盤價": "close",
+              "漲跌價差": "change",
+              "成交筆數": "trades"
+            },
+            "postprocess": [
+              {
+                "action": "convert_roc_date_to_iso",
+                "source": "date_roc",
+                "target": "date"
+              },
+              {
+                "action": "to_number",
+                "fields": [
+                  "volume",
+                  "turnover",
+                  "open",
+                  "high",
+                  "low",
+                  "close",
+                  "change",
+                  "trades"
+                ]
+              },
+              {
+                "action": "drop_fields",
+                "fields": [
+                  "date_roc"
+                ]
+              }
+            ]
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "30 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 2,
+            "burst": 2
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://openapi.twse.com.tw/"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "twse.exchangeReport.STOCK_DAY_ALL",
+          "name": "上市個股日成交資訊（全市場 CSV）",
+          "category": "prices",
+          "method": "GET",
+          "url_template": "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL",
+          "query_template": {
+            "response": "open_data"
+          },
+          "request_example": "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=open_data",
+          "response": {
+            "content_type": "text/csv",
+            "csv_options": {
+              "encoding": "utf-8-sig"
+            },
+            "fields_map": {
+              "證券代號": "stock_code",
+              "證券名稱": "stock_name",
+              "開盤價": "open",
+              "最高價": "high",
+              "最低價": "low",
+              "收盤價": "close",
+              "成交股數": "volume",
+              "成交金額": "turnover",
+              "成交筆數": "trades",
+              "最後揭示買價": "final_bid",
+              "最後揭示賣價": "final_ask",
+              "本益比": "pe_ratio",
+              "殖利率": "dividend_yield",
+              "股價淨值比": "pb_ratio"
+            }
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "30 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 1,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "open_data_terms",
+            "reference": "https://openapi.twse.com.tw/"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "twse.exchangeReport.BWIBBU_ALL",
+          "name": "殖利率/本益比/股價淨值比彙總",
+          "category": "fundamentals",
+          "method": "GET",
+          "url_template": "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+          "query_template": {},
+          "request_example": "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+          "response": {
+            "content_type": "application/json",
+            "data_path": null,
+            "fields_map": {
+              "證券代號": "stock_code",
+              "證券名稱": "stock_name",
+              "殖利率(%)": "dividend_yield_pct",
+              "本益比": "pe_ratio",
+              "股價淨值比": "pb_ratio",
+              "財報年/季": "fin_qtr"
+            }
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "30 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 2,
+            "burst": 2
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://openapi.twse.com.tw/"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "twse.exchangeReport.MI_INDEX",
+          "name": "大盤統計資訊（含加權指數等）",
+          "category": "index",
+          "method": "GET",
+          "url_template": "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX",
+          "query_template": {},
+          "request_example": "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX",
+          "response": {
+            "content_type": "application/json",
+            "data_path": null,
+            "fields_map": {
+              "指數": "index_name",
+              "收盤指數": "close",
+              "漲跌": "change_sign",
+              "漲跌點數": "change_points",
+              "漲跌百分比": "change_pct"
+            }
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "35 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 2,
+            "burst": 2
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://openapi.twse.com.tw/"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "twse.exchangeReport.MI_MARGN",
+          "name": "信用交易統計（融資融券餘額）",
+          "category": "credit",
+          "method": "GET",
+          "url_template": "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN",
+          "query_template": {},
+          "request_example": "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN",
+          "response": {
+            "content_type": "application/json",
+            "data_path": null,
+            "fields_map": {
+              "股票代號": "stock_code",
+              "股票名稱": "stock_name",
+              "融資買進": "margin_buy",
+              "融資賣出": "margin_sell",
+              "融資餘額": "margin_balance",
+              "融券賣出": "short_sell",
+              "融券買進": "short_buy",
+              "融券餘額": "short_balance"
+            }
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "40 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 2,
+            "burst": 2
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://openapi.twse.com.tw/"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "twse.fund.T86_legacy",
+          "name": "三大法人買賣超（legacy JSON）",
+          "category": "investors",
+          "method": "GET",
+          "url_template": "https://www.twse.com.tw/fund/T86",
+          "query_template": {
+            "response": "json",
+            "date": "YYYYMMDD",
+            "selectType": "ALL"
+          },
+          "request_example": "https://www.twse.com.tw/fund/T86?response=json&date=20250102&selectType=ALL",
+          "response": {
+            "content_type": "application/json",
+            "data_path": "data",
+            "fields_map": {
+              "證券代號": "stock_code",
+              "證券名稱": "stock_name",
+              "外資買進股數(不含外資自營商)": "foreign_buy",
+              "外資賣出股數(不含外資自營商)": "foreign_sell",
+              "外資買賣超股數(不含外資自營商)": "foreign_net",
+              "投信買賣超股數": "it_net",
+              "自營商買賣超股數": "dealer_net"
+            }
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "45 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 1,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://www.twse.com.tw/"
+          },
+          "status": "legacy"
+        }
+      ]
     },
-    "frequency": "daily_eod",
-    "pk": ["date", "stockNo", "investorType"],
-    "docs": "https://openapi.twse.com.tw/",
-    "parser": "json"
-  },
-  "twse.margin": {
-    "source": "TWSE OpenAPI",
-    "endpoint": "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN",
-    "method": "GET",
-    "query": {
-      "response": "json",
-      "date": "{YYYYMMDD}"
+    {
+      "id": "tpex",
+      "name": "Taipei Exchange (TPEx)",
+      "base_urls": [
+        "https://www.tpex.org.tw",
+        "https://www.tpex.org.tw/openapi"
+      ],
+      "discovery": {
+        "type": "openapi",
+        "spec_url": "https://www.tpex.org.tw/openapi/swagger.json",
+        "include_paths": [
+          "/*"
+        ],
+        "exclude_paths": []
+      },
+      "endpoints": [
+        {
+          "id": "tpex.stock.daily_close_csv_legacy",
+          "name": "上櫃個股日成交（CSV 下載）",
+          "category": "prices",
+          "method": "GET",
+          "url_template": "https://www.tpex.org.tw/web/stock/aftertrading/DAILY_CLOSE_quotes/stk_quote_result.php",
+          "query_template": {
+            "l": "zh-tw",
+            "d": "YYY/MM",
+            "stkno": "{stock_code}"
+          },
+          "request_example": "https://www.tpex.org.tw/web/stock/aftertrading/DAILY_CLOSE_quotes/stk_quote_result.php?l=zh-tw&d=114/09&stkno=6488",
+          "response": {
+            "content_type": "application/json|text/html|csv",
+            "fields_map": {
+              "日期": "date_roc",
+              "開盤": "open",
+              "最高": "high",
+              "最低": "low",
+              "收盤": "close",
+              "成交股數(交易單位)": "volume",
+              "成交金額(元)": "turnover",
+              "成交筆數": "trades"
+            },
+            "postprocess": [
+              {
+                "action": "convert_roc_date_to_iso",
+                "source": "date_roc",
+                "target": "date"
+              },
+              {
+                "action": "to_number",
+                "fields": [
+                  "open",
+                  "high",
+                  "low",
+                  "close",
+                  "volume",
+                  "turnover",
+                  "trades"
+                ]
+              },
+              {
+                "action": "drop_fields",
+                "fields": [
+                  "date_roc"
+                ]
+              }
+            ]
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "30 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 1,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://www.tpex.org.tw/openapi/"
+          },
+          "status": "legacy"
+        }
+      ]
     },
-    "frequency": "daily_eod",
-    "pk": ["date", "stockNo"],
-    "parser": "json"
-  },
-  "tpex.stock_day": {
-    "source": "TPEx OpenAPI",
-    "endpoint": "https://www.tpex.org.tw/openapi/v1/mopsfin/t187ap03_L",
-    "method": "GET",
-    "frequency": "daily_eod",
-    "pk": ["Date", "SecuritiesCompanyCode"],
-    "docs": "https://www.tpex.org.tw/openapi/",
-    "parser": "json"
-  },
-  "taifex.daily_report": {
-    "source": "TAIFEX",
-    "endpoint": "https://www.taifex.com.tw/cht/3/dlFutDataDown",
-    "method": "POST",
-    "payload": {
-      "down_type": "1",
-      "commodity_id": "TX",
-      "queryStartDate": "{YYYYMMDD}",
-      "queryEndDate": "{YYYYMMDD}"
+    {
+      "id": "taifex",
+      "name": "Taiwan Futures Exchange (TAIFEX)",
+      "base_urls": [
+        "https://openapi.taifex.com.tw",
+        "https://www.taifex.com.tw"
+      ],
+      "discovery": {
+        "type": "openapi",
+        "spec_url": "https://openapi.taifex.com.tw/swagger.json",
+        "include_paths": [
+          "/*"
+        ],
+        "exclude_paths": []
+      },
+      "endpoints": [
+        {
+          "id": "taifex.openapi.samples.daily_report",
+          "name": "（樣板）日市場彙整資料",
+          "category": "market-stats",
+          "method": "GET",
+          "url_template": "https://openapi.taifex.com.tw/v1/DailyMarketSummary",
+          "query_template": {},
+          "request_example": "https://openapi.taifex.com.tw/v1/DailyMarketSummary",
+          "response": {
+            "content_type": "application/json",
+            "data_path": null,
+            "fields_map": {
+              "Date": "date",
+              "FuturesVolume": "futures_volume",
+              "OptionsVolume": "options_volume",
+              "OpenInterest": "open_interest"
+            }
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "30 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 2,
+            "burst": 2
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "terms_of_use",
+            "reference": "https://openapi.taifex.com.tw/"
+          },
+          "status": "example"
+        },
+        {
+          "id": "taifex.download.prev30_ticks_notice",
+          "name": "近30日逐筆成交（官網下載區）",
+          "category": "ticks",
+          "method": "GET",
+          "url_template": "https://www.taifex.com.tw/enl/eng3/futPrevious30DaysSalesData",
+          "query_template": {},
+          "request_example": "https://www.taifex.com.tw/enl/eng3/futPrevious30DaysSalesData",
+          "response": {
+            "content_type": "text/html|text/csv|application/zip",
+            "fields_map": {}
+          },
+          "scheduling": {
+            "type": "cron",
+            "cron": "45 16 * * 1-5",
+            "timezone": "Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 1,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "website_terms",
+            "reference": "https://www.taifex.com.tw/enl/eIndex"
+          },
+          "status": "download-landing"
+        }
+      ]
     },
-    "frequency": "daily_eod",
-    "pk": ["date", "contract"],
-    "docs": "https://www.taifex.com.tw/enl/eng3/futDailyMarketReport",
-    "parser": "csv"
-  },
-  "mops.material_info_rss": {
-    "source": "MOPS",
-    "endpoint": "https://mops.twse.com.tw/nas/rss/mopsrss201001.xml",
-    "method": "GET",
-    "frequency": "workday_intraday_poll",
-    "pk": ["guid"],
-    "docs": "https://mops.twse.com.tw/mops/web/index",
-    "parser": "rss"
-  }
+    {
+      "id": "mops",
+      "name": "Market Observation Post System (MOPS)",
+      "base_urls": [
+        "https://mops.twse.com.tw",
+        "https://mopsov.twse.com.tw"
+      ],
+      "discovery": {
+        "type": "rss_autodiscovery",
+        "spec": "Look for <link rel='alternate' type='application/rss+xml'> elements under sections: Material Information, Shareholders Meeting, Ex-right/Ex-dividend."
+      },
+      "endpoints": [
+        {
+          "id": "mops.rss.material_information",
+          "name": "重大訊息 RSS",
+          "category": "disclosures",
+          "method": "GET",
+          "url_template": "<auto-discovered RSS URL on MOPS homepage>",
+          "query_template": {},
+          "request_example": "Resolve via homepage RSS link; poll every 1–5 minutes",
+          "response": {
+            "content_type": "application/rss+xml",
+            "fields_map": {
+              "guid": "id",
+              "title": "title",
+              "link": "link",
+              "pubDate": "pub_date",
+              "description": "summary"
+            }
+          },
+          "scheduling": {
+            "type": "interval",
+            "seconds": 120,
+            "active_hours": "08:00-18:00 Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 0.5,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "website_terms",
+            "reference": "https://mopsov.twse.com.tw/mops/web/index"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "mops.rss.shareholders_meetings",
+          "name": "股東會公告 RSS",
+          "category": "disclosures",
+          "method": "GET",
+          "url_template": "<auto-discovered RSS URL on MOPS homepage>",
+          "query_template": {},
+          "request_example": "Resolve via homepage RSS link; poll every 1–5 minutes",
+          "response": {
+            "content_type": "application/rss+xml",
+            "fields_map": {
+              "guid": "id",
+              "title": "title",
+              "link": "link",
+              "pubDate": "pub_date",
+              "description": "summary"
+            }
+          },
+          "scheduling": {
+            "type": "interval",
+            "seconds": 180,
+            "active_hours": "08:00-18:00 Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 0.33,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "website_terms",
+            "reference": "https://mopsov.twse.com.tw/mops/web/index"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "mops.rss.ex_rights_dividends",
+          "name": "除權息公告 RSS",
+          "category": "disclosures",
+          "method": "GET",
+          "url_template": "<auto-discovered RSS URL on MOPS homepage>",
+          "query_template": {},
+          "request_example": "Resolve via homepage RSS link; poll every 1–5 minutes",
+          "response": {
+            "content_type": "application/rss+xml",
+            "fields_map": {
+              "guid": "id",
+              "title": "title",
+              "link": "link",
+              "pubDate": "pub_date",
+              "description": "summary"
+            }
+          },
+          "scheduling": {
+            "type": "interval",
+            "seconds": 180,
+            "active_hours": "08:00-18:00 Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 0.33,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "website_terms",
+            "reference": "https://mopsov.twse.com.tw/mops/web/index"
+          },
+          "status": "stable"
+        },
+        {
+          "id": "mops.web.t05st01",
+          "name": "歷史重大訊息（查詢頁）",
+          "category": "disclosures",
+          "method": "GET",
+          "url_template": "https://mops.twse.com.tw/mops/web/t05st01",
+          "query_template": {
+            "co_id": "{stock_code}",
+            "year": "YYYY",
+            "month": "MM"
+          },
+          "request_example": "https://mops.twse.com.tw/mops/web/t05st01?year=2025&month=09&co_id=2330",
+          "response": {
+            "content_type": "text/html",
+            "fields_map": {}
+          },
+          "scheduling": {
+            "type": "interval",
+            "seconds": 300,
+            "active_hours": "08:00-18:00 Asia/Taipei"
+          },
+          "rate_limit": {
+            "rps": 0.2,
+            "burst": 1
+          },
+          "retries": {
+            "inherit_global": true
+          },
+          "licensing": {
+            "type": "website_terms",
+            "reference": "https://mopsov.twse.com.tw/mops/web/index"
+          },
+          "status": "html-query"
+        }
+      ]
+    }
+  ]
 }

@@ -10,16 +10,41 @@ This repository bundles reusable extractors, validators, and a CLI for pulling r
 
 ## Data Coverage / 資料範圍
 
-Available sources are centrally defined in `src/registry/catalog.json`. Each catalog entry specifies the HTTP method, payload template, parsing strategy, and validation rules.
+The unified catalog lives in `src/registry/catalog.json`. The JSON now exposes:
 
-| Catalog ID | Provider | Frequency | Format | Key Fields | Notes |
-|------------|----------|-----------|--------|------------|-------|
-| `twse.stock_day` | TWSE OpenAPI | Daily end-of-day | JSON | `date`, `open`, `high`, `low`, `close`, `volume` | Daily OHLCV for listed equities.<br>台股上市公司日線行情資料（含價格與成交量）。 |
-| `twse.t86` | TWSE OpenAPI | Daily end-of-day | JSON | `date`, `stockNo`, `investorType` | Institutional buy/sell imbalance (三大法人).<br>三大法人買賣超統計。 |
-| `twse.margin` | TWSE OpenAPI | Daily end-of-day | JSON | `date`, `stockNo`, margin metrics | Securities margin trading balances.<br>融資融券餘額資訊。 |
-| `tpex.stock_day` | TPEx OpenAPI | Daily end-of-day | JSON | `Date`, `SecuritiesCompanyCode`, `Volume` | OTC equity dealer turnover.<br>櫃買中心券商成交統計。 |
-| `taifex.daily_report` | TAIFEX | Daily end-of-day | CSV | `date`, `contract`, futures stats | TX futures daily market report.<br>台指期每日交易統計。 |
-| `mops.material_info_rss` | MOPS | Intraday (workdays) | RSS | `guid`, `title`, `pubDate` | Material information announcements.<br>重大訊息即時 RSS。 |
+- `version`, `generated_at`, `timezone`, `notes`: metadata describing the snapshot.
+- `global_defaults.http`: shared timeout, retry, header, and rate-limit defaults for all endpoints.
+- `sources[]`: TWSE / TPEx / TAIFEX OpenAPI blocks (with discovery URLs) and MOPS RSS templates. Each source lists its `endpoints[]` with request templates, scheduling hints, response field mappings, and licensing notes.
+
+Key ready-to-use entries include:
+
+| Catalog ID | Provider | Frequency | Format | Highlights |
+|------------|----------|-----------|--------|------------|
+| `twse.exchangeReport.STOCK_DAY` | TWSE legacy JSON | Daily 16:30+ | JSON | Per-symbol OHLCV with post-processing instructions. |
+| `twse.exchangeReport.BWIBBU_ALL` | TWSE legacy JSON | Daily 16:30+ | JSON | 全市場殖利率、股價淨值比等估值指標。 |
+| `tpex.stock.daily_close_csv_legacy` | TPEx legacy HTML/CSV | Daily 16:30+ | JSON/CSV | 上櫃個股日成交，含 ROC 日期轉換與欄位對映。 |
+| `taifex.openapi.samples.daily_report` | TAIFEX OpenAPI | Daily 16:30+ | JSON | 期交所市場彙整樣板，可自動列舉 swagger paths 延伸。 |
+| `mops.rss.material_information` | MOPS RSS | Intraday 1–3 min | RSS | 重大訊息 RSS，自動探索 feed URL。 |
+| `mops.web.t05st01` | MOPS HTML | Intraday 5 min | HTML | 歷史重大訊息查詢頁面備援。 |
+
+Because each source section references its Swagger/OpenAPI spec (`discovery.spec_url`), an ETL job can programmatically enumerate all available paths to bootstrap request templates and avoid manual omissions.
+
+### Storage hierarchy / 資料存放層級
+
+To keep spot symbols and their derivatives organised together, a storage planner (`registry.storage.StoragePlan`) describes where each dataset should land. Paths follow the convention:
+
+```
+data/<source>/<underlying>/spot/<dataset>/...         # 基礎標的（現貨資料）
+data/<source>/<underlying>/derivatives/<type>/<id>/... # 衍生品（期貨、選擇權等）
+data/<source>/market/<dataset>/...                     # 市場彙整資料
+data/<source>/disclosures/...                          # 與來源相關的公告 / RSS
+```
+
+- Instrument-scoped endpoints (e.g. `twse.exchangeReport.STOCK_DAY`, `tpex.stock.daily_close_csv_legacy`) resolve to `…/<stock_code>/spot/ohlcv/daily`.
+- Market-wide datasets (e.g. `twse.exchangeReport.BWIBBU_ALL`) are grouped under `…/market/…`.
+- MOPS feeds remain under `mops/disclosures/...`, while per-company HTML fallbacks share the same underlying directory via the `stock_code` parameter.
+
+The planner is extensible—add or override entries in `DEFAULT_STORAGE_MAP` to slot new derivatives (e.g. TAIFEX options) under the same underlying symbol tree. `CatalogEntry.expand()` surfaces the computed template and resolved path (if parameters suffice) in the CLI response, making downstream routing or backtesting storage pipelines deterministic.
 
 ## Setup / 環境設定
 
@@ -38,13 +63,13 @@ Available sources are centrally defined in `src/registry/catalog.json`. Each cat
 Use the CLI for ad-hoc pulls:
 
 ```bash
-python -m src.app pull twse.stock_day --param date=2024-01-05 --param stockNo=2330
+python -m src.app pull twse.exchangeReport.STOCK_DAY --param stock_code=2330 --param date=2024-09-30
 ```
 
 自訂臨時抓取可透過 CLI：
 
 ```bash
-python -m src.app pull mops.material_info_rss --config USER_AGENT="my-project/0.1"
+python -m src.app pull mops.rss.material_information --config USER_AGENT="my-project/0.1"
 ```
 
 Results are printed as JSON and contain metadata about the source, fetch time, and raw payload.
